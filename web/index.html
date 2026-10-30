@@ -2,16 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>rrdemo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenInspect stitching demo</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Image Stitching Demo</h1>
-  <input id="files" type="file" accept="image/*" multiple>
-  <button id="upload">Upload</button>
-  <table>
-    <thead><tr><th>Job</th><th>Status</th><th>Result</th></tr></thead>
-    <tbody id="jobs"></tbody>
-  </table>
+  <header class="top">
+    <h1>OpenInspect stitching demo</h1>
+    <p id="api-status" class="api-status" data-state="checking">Checking API…</p>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="new-job-heading">
+      <h2 id="new-job-heading">New job</h2>
+
+      <label id="dropzone" class="dropzone">
+        <input id="files" class="visually-hidden" type="file" accept="image/*" multiple>
+        <span class="dropzone-main">Drop 2–10 overlapping photos here</span>
+        <span class="dropzone-sub">or <span class="fake-link">choose files</span></span>
+      </label>
+
+      <ul id="selection" class="thumbs thumbs-selection" aria-label="Selected photos" hidden></ul>
+
+      <div class="upload-bar">
+        <p id="selection-summary" class="summary">No photos selected.</p>
+        <div class="actions">
+          <button id="clear" class="button-secondary" type="button" disabled>Clear</button>
+          <button id="upload" class="button-primary" type="button" disabled>Stitch photos</button>
+        </div>
+      </div>
+      <p id="upload-message" class="message" role="alert"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="jobs-heading">
+      <h2 id="jobs-heading">Jobs</h2>
+      <p id="empty" class="empty">No jobs yet. Add photos above and select Stitch photos to start one.</p>
+      <div class="table-wrap">
+        <table id="jobs-table" hidden>
+          <thead><tr><th scope="col">Job</th><th scope="col">Status</th><th scope="col">Result</th></tr></thead>
+          <tbody id="jobs"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <p id="announcer" class="visually-hidden" aria-live="polite"></p>
   <script src="app.js"></script>
 </body>
 </html>
