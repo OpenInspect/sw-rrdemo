@@ -31,7 +31,8 @@ orchestrator (FastAPI) ── Celery client ──► Redis (broker + results) �
 - **Task referenced by name** (`rrdemo.stitch_images`): the API sends it via `send_task`, so it never has to
   import OpenCV code.
 - **Limits and expiry**: upload count/size is capped in the API, and results expire after 1 hour so base64
-  payloads don't accumulate in Redis.
+  payloads don't accumulate in Redis. Submitted-job registrations also expire after 1 hour from
+  submission, allowing unknown/expired IDs to return 404 instead of looking queued forever.
 - **No `pydantic-settings`**: config is a plain dataclass reading environment variables (`app/config.py`).
 
 ## Contract
@@ -41,6 +42,10 @@ orchestrator (FastAPI) ── Celery client ──► Redis (broker + results) �
 | `GET /api/jobs/{id}` | `JobStatus`: state (`PENDING`/`STARTED`/`PROGRESS`/`SUCCESS`/`FAILURE`), optional progress, result, error |
 | `GET /api/health` | `{"status": "ok"}` |
 | Celery task | `rrdemo.stitch_images`, queue `cv`; payload is a `StitchRequest`, returns a `StitchResult` (base64 JPEG + size) |
+
+The polling endpoint returns JSON with HTTP 200 for known jobs, including pending and failed jobs.
+Unknown/expired IDs return 404; unavailable backend services return 503. Uploads are decoded/validated
+as JPEG, PNG, WebP, BMP, or TIFF before dispatch.
 
 ## Layout
 ```
@@ -62,7 +67,15 @@ docker compose up --build            # UI/API at http://localhost:8000
 docker compose up --scale worker=2   # more workers
 ```
 
-## Verification checklist (once implemented)
+## Implementation status
+
+The web UI and FastAPI orchestration endpoints are implemented. The CV algorithm is present, but
+`app/worker/tasks.py` still raises `NotImplementedError`, and `stitching.py` needs to return the
+existing `StitchResult(image, width, height)` schema instead of its current incompatible fields.
+The missing SciPy dependency is now declared. See [ORCHESTRATION.md](ORCHESTRATION.md) for the
+worker handoff, tests, API behavior, and commit instructions.
+
+## Verification checklist (after the worker handoff)
 1. All three services start; `curl localhost:8000/api/health` returns ok.
 2. Upload 2+ overlapping photos in the UI: the row goes PENDING → STARTED/PROGRESS → SUCCESS and the stitched
    image renders.
@@ -71,4 +84,5 @@ docker compose up --scale worker=2   # more workers
 5. Repeat with `--scale worker=2` to demonstrate horizontal scaling.
 
 ## Out of scope / future work
-Auth, S3 storage, stitching quality tuning and mode selection, task retries, and automated tests.
+Auth, S3 storage, stitching quality tuning and mode selection, automatic worker retries,
+and persistent job history. Orchestration API tests are included in `backend/tests/`.
