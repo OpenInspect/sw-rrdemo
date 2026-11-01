@@ -10,6 +10,10 @@ from scipy.sparse.linalg import lsqr
 from app.schemas import StitchResult
 
 
+class StitchError(Exception):
+    """Expected stitching failure; Celery records it as FAILURE and JobStatus.error carries the message."""
+
+
 class ScalablePCBStitcher:
     """Production-grade planar PCB stitcher adapted for in-memory Celery tasks."""
 
@@ -279,24 +283,31 @@ def stitch_b64(
     """Decodes base64 tiles, stitches using planar global BA, and returns base64 JPEG."""
     images = []
     for b64 in images_b64:
-        raw_bytes = base64.b64decode(b64)
+        try:
+            raw_bytes = base64.b64decode(b64, validate=True)
+        except ValueError:
+            continue
         np_arr = np.frombuffer(raw_bytes, dtype=np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         if img is not None:
             images.append(img)
 
     if len(images) < 2:
-        return StitchResult(success=False, error="At least 2 valid images are required to stitch.")
+        raise StitchError("At least 2 valid images are required to stitch.")
 
     stitcher = ScalablePCBStitcher(detector_name="sift", blend_mode="feather")
     result_img = stitcher.stitch_images(images, grid_rows=rows, grid_cols=cols)
 
     if result_img is None:
-        return StitchResult(success=False, error="Failed to align tiles into a single connected canvas.")
+        raise StitchError("Failed to align tiles into a single connected canvas.")
 
     success, buf = cv2.imencode(".jpg", result_img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     if not success:
-        return StitchResult(success=False, error="Failed to encode composite image to JPEG.")
+        raise StitchError("Failed to encode composite image to JPEG.")
 
-    result_b64 = base64.b64encode(buf).decode("utf-8")
-    return StitchResult(success=True, image_b64=result_b64)
+    height, width = result_img.shape[:2]
+    return StitchResult(
+        image=base64.b64encode(buf).decode("utf-8"),
+        width=width,
+        height=height,
+    )
